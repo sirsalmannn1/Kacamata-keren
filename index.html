@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Kacamata AR </title>
+    
+    <script>
+        window.MathJax = {
+            startup: { typeset: false },
+            tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap');
+
+        body, html {
+            margin: 0; padding: 0; background-color: #050505;
+            height: 100%; width: 100%; overflow: hidden;
+            font-family: 'Orbitron', sans-serif; letter-spacing: 1px;
+        }
+
+        #bg-video {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%; object-fit: cover; z-index: 0;
+            filter: contrast(1.1) brightness(0.8);
+            transform-origin: center center; transition: 0.3s;
+        }
+
+        .pov-frame-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: space-between; align-items: stretch;
+            padding: 1.5vw; pointer-events: none; z-index: 5;
+        }
+
+        .lensa-pov {
+            flex: 1; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            border: clamp(8px, 2.5vw, 25px) solid #000; border-radius: 10% / 15%;
+            background: rgba(0, 255, 255, 0.01); 
+            box-shadow: inset 0 0 50px rgba(0,0,0,1), 0 0 30px rgba(0,0,0,1), inset 0 0 10px rgba(0, 255, 255, 0.1); 
+            backdrop-filter: blur(0.5px); position: relative; overflow: hidden; margin: 0 1vw;
+        }
+
+        .nose-bridge {
+            width: clamp(25px, 6vw, 70px); align-self: flex-end; height: 30%;
+            background: #000; border-radius: 50px 50px 0 0;
+            margin-bottom: -1vw; box-shadow: 0 0 20px rgba(0,0,0,1);
+        }
+
+        .hud-deco {
+            position: absolute; color: rgba(0, 255, 255, 0.6); 
+            font-size: clamp(9px, 1.2vw, 14px); text-transform: uppercase;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.8); z-index: 2;
+        }
+        
+        .lensa-pov::before, .lensa-pov::after {
+            content: ''; position: absolute; width: 30px; height: 30px;
+            border-color: rgba(0, 255, 255, 0.6); border-style: solid;
+        }
+        .lensa-pov::before { top: 15px; left: 15px; border-width: 3px 0 0 3px; } 
+        .lensa-pov::after { bottom: 15px; right: 15px; border-width: 0 3px 3px 0; } 
+
+        .status-tl { top: 15px; right: 20px; text-align: right; }
+        .status-bl { bottom: 15px; left: 20px; text-align: left; }
+        .status-tr { top: 15px; left: 20px; text-align: left; color: #f39c12; text-shadow: 0 0 5px #f39c12; }
+        
+        .scan-line {
+            position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+            background: linear-gradient(90deg, rgba(0,255,255,0) 0%, rgba(0,255,255,0.8) 50%, rgba(0,255,255,0) 100%);
+            box-shadow: 0 0 10px #00ffff; animation: scanAnim 3s infinite linear; opacity: 0.3;
+        }
+        @keyframes scanAnim { 0% { top: -5%; } 100% { top: 105%; } }
+
+        .hud-display {
+            position: absolute; width: 90%; height: 80%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            color: #00ffff; text-align: center; font-size: clamp(14px, 2vw, 24px); font-weight: 700; 
+            opacity: 0; transform: scale(0.9); transition: 0.3s all; z-index: 4;
+        }
+        
+        .hud-display svg { filter: drop-shadow(0px 0px 5px #00ffff); fill: #00ffff; margin: 8px 0; }
+        .hud-display.active { opacity: 1; transform: scale(1); }
+        .hud-display h3 { margin: 0 0 1vh 0; border-bottom: 2px solid #00ffff; font-size: 1em; text-transform: uppercase; text-shadow: 0 0 10px #00ffff; }
+        .pesan-error { color: #ff4757; text-shadow: 0 0 10px #ff4757; border-bottom: 2px solid #ff4757 !important; }
+
+        .kontrol-panel { position: absolute; bottom: clamp(15px, 4vh, 40px); width: 100%; display: flex; flex-direction: column; align-items: center; gap: 15px; z-index: 10; }
+        .baris-tombol { display: flex; gap: 4vw; }
+        
+        .btn-bulat {
+            width: clamp(55px, 12vw, 75px); height: clamp(55px, 12vw, 75px);
+            border-radius: 50%; border: 3px solid rgba(0, 255, 255, 0.5); 
+            background-color: rgba(17, 17, 17, 0.9); color: #00ffff; 
+            font-size: clamp(20px, 5vw, 30px); cursor: pointer; 
+            box-shadow: 0 0 15px rgba(0,0,0,0.8); transition: 0.2s all; display: flex; justify-content: center; align-items: center; pointer-events: auto; 
+        }
+        .btn-bulat:active { transform: scale(0.9); }
+        .btn-bulat.aktif { background-color: #27ae60; border-color: #2ecc71; color: #fff; box-shadow: 0 0 20px #27ae60; }
+        .btn-bulat.aktif-kb { background-color: #3498db; border-color: #2980b9; color: #fff; box-shadow: 0 0 20px #3498db; }
+
+        #manual-input-container { display: none; width: 80%; max-width: 400px; pointer-events: auto; }
+        #manual-input {
+            width: 100%; padding: 12px; border-radius: 8px; border: 2px solid #00ffff;
+            background: rgba(0,0,0,0.8); color: #00ffff; font-family: 'Orbitron', sans-serif;
+            font-size: 16px; text-align: center; outline: none; box-shadow: 0 0 15px rgba(0,255,255,0.3);
+        }
+        #manual-input::placeholder { color: rgba(0,255,255,0.4); }
+    </style>
+</head>
+<body>
+
+    <video id="bg-video" autoplay playsinline></video>
+
+    <div class="pov-frame-container">
+        <div class="lensa-pov">
+            <div class="scan-line"></div>
+            <div class="hud-deco status-tr clock-display">00:00</div>
+            <div class="hud-deco status-tl">SYS: ON<br>MATH_v7</div>
+            <div class="hud-deco status-bl" id="status-kiri">REC: STBY</div>
+            <div class="hud-display" id="hudLeft"></div>
+        </div>
+        
+        <div class="nose-bridge"></div>
+        
+        <div class="lensa-pov">
+            <div class="scan-line"></div>
+            <div class="hud-deco status-tr clock-display">00:00</div>
+            <div class="hud-deco status-tl">SYS: ON<br>MATH_v7</div>
+            <div class="hud-deco status-bl" id="status-kanan">REC: STBY</div>
+            <div class="hud-display" id="hudRight"></div>
+        </div>
+    </div>
+
+    <div class="kontrol-panel">
+        <div id="manual-input-container">
+            <input type="text" id="manual-input" placeholder="Ketik hitungan: hitung 10 ÷ 2" autocomplete="off">
+        </div>
+        <div class="baris-tombol">
+            <button id="btn-cam" class="btn-bulat" onclick="toggleKamera()">📷</button>
+            <button id="btn-zoom" class="btn-bulat" onclick="toggleZoom()">🔍</button>
+            <button id="btn-mic" class="btn-bulat" onclick="toggleMic()">🎤</button>
+            <button id="btn-kb" class="btn-bulat" onclick="toggleKeyboard()">⌨️</button>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('bg-video');
+        const hudL = document.getElementById('hudLeft');
+        const hudR = document.getElementById('hudRight');
+        const btnCam = document.getElementById('btn-cam');
+        const btnMic = document.getElementById('btn-mic');
+        const btnZoom = document.getElementById('btn-zoom');
+        const btnKb = document.getElementById('btn-kb');
+        const inputContainer = document.getElementById('manual-input-container');
+        const inputManual = document.getElementById('manual-input');
+
+        let videoStream = null; let recognition = null; let micAktif = false; let zoomLevel = 1;
+
+        setInterval(() => {
+            const now = new Date();
+            document.querySelectorAll('.clock-display').forEach(el => el.innerHTML = now.toLocaleTimeString('id-ID'));
+        }, 1000);
+
+        function tampilkanNotif(pesan, isError = false) {
+            let formatHTML = `<h3 class="${isError ? 'pesan-error' : ''}">${isError ? 'SYSTEM ERROR' : 'INFO'}</h3><p style="font-size:12px;">${pesan}</p>`;
+            hudL.innerHTML = formatHTML; hudR.innerHTML = formatHTML;
+            hudL.classList.add('active'); hudR.classList.add('active');
+            setTimeout(() => { hudL.classList.remove('active'); hudR.classList.remove('active'); }, 4000);
+        }
+
+        function toggleZoom() {
+            zoomLevel = zoomLevel >= 3 ? 1 : zoomLevel + 1;
+            video.style.transform = `scale(${zoomLevel})`;
+        }
+
+        function toggleKamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                video.srcObject = null; videoStream = null; btnCam.classList.remove('aktif');
+            } else {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                    .then(stream => { videoStream = stream; video.srcObject = stream; btnCam.classList.add('aktif'); })
+                    .catch(err => tampilkanNotif("Akses kamera ditolak. Gunakan localhost atau HTTPS.", true));
+                } else {
+                    tampilkanNotif("Browser tidak mendukung akses kamera.", true);
+                }
+            }
+        }
+
+        function toggleKeyboard() {
+            if (inputContainer.style.display === 'block') {
+                inputContainer.style.display = 'none'; btnKb.classList.remove('aktif-kb');
+            } else {
+                inputContainer.style.display = 'block'; btnKb.classList.add('aktif-kb');
+                inputManual.focus();
+            }
+        }
+
+        inputManual.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                prosesPerintah(inputManual.value.toLowerCase());
+                inputManual.value = ''; 
+            }
+        });
+
+        function toggleMic() {
+            if (!recognition) {
+                const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRec) { 
+                    tampilkanNotif("Voice Recognition diblokir. Gunakan input keyboard ⌨️.", true); 
+                    return; 
+                }
+                recognition = new SpeechRec(); recognition.lang = 'id-ID'; recognition.continuous = true;
+                
+                recognition.onstart = () => {
+                    document.getElementById('status-kiri').innerText = "REC: LISTENING";
+                    document.getElementById('status-kanan').innerText = "REC: LISTENING";
+                };
+
+                recognition.onresult = (event) => { 
+                    prosesPerintah(event.results[event.results.length - 1][0].transcript.toLowerCase()); 
+                };
+
+                recognition.onerror = (event) => {
+                    tampilkanNotif("Mic error. Gunakan keyboard ⌨️.", true);
+                    micAktif = false; btnMic.classList.remove('aktif');
+                };
+
+                recognition.onend = () => { 
+                    if(micAktif) recognition.start(); 
+                    else {
+                        document.getElementById('status-kiri').innerText = "REC: STBY";
+                        document.getElementById('status-kanan').innerText = "REC: STBY";
+                    }
+                };
+            }
+            if (micAktif) { micAktif = false; recognition.stop(); btnMic.classList.remove('aktif'); } 
+            else { micAktif = true; recognition.start(); btnMic.classList.add('aktif'); }
+        }
+
+        function prosesPerintah(teks) {
+            let konten = '';
+            
+            // ==========================================
+            // LOGIKA KALKULATOR CEPAT (VERSI FIX)
+            // ==========================================
+            if (teks.startsWith('hitung')) {
+                let ekspresi = teks.replace('hitung', '').trim();
+                
+                // Terjemahkan semua variasi input ke simbol standar JavaScript (+ - * /)
+                let mathEkspresi = ekspresi
+                    .replace(/tambah/gi, '+')
+                    .replace(/kurang/gi, '-')
+                    .replace(/dikali/gi, '*')
+                    .replace(/kali/gi, '*')
+                    .replace(/dibagi/gi, '/')
+                    .replace(/bagi/gi, '/')
+                    .replace(/x/gi, '*')     // Huruf x jadi kali
+                    .replace(/×/g, '*')      // Simbol kali asli dari HP
+                    .replace(/÷/g, '/')      // Simbol bagi asli dari HP
+                    .replace(/:/g, '/')      // Titik dua jadi bagi
+                    .replace(/−/g, '-')      // Simbol minus aneh dari beberapa HP
+                    .replace(/–/g, '-');
+
+                try {
+                    // Bersihkan karakter selain angka dan operator dasar js
+                    let safeEkspresi = mathEkspresi.replace(/[^0-9+\-*/().]/g, '');
+                    
+                    // Cek jika kosong atau cuma berisi operator tanpa angka
+                    if (safeEkspresi === '' || safeEkspresi.match(/^[+\-*/]+$/)) {
+                        throw "Format Kosong";
+                    }
+
+                    // Hitung hasilnya
+                    let hasil = eval(safeEkspresi);
+                    
+                    // Kalau hasilnya pecahan desimal panjang, bulatkan max 2 angka di belakang koma
+                    if (hasil % 1 !== 0) hasil = hasil.toFixed(2);
+                    
+                    // Bikin format LaTeX biar rapi tampil di layar
+                    let latexEkspresi = safeEkspresi.replace(/\*/g, '\\times').replace(/\//g, '\\div');
+                    
+                    konten = `<h3>HASIL HITUNG</h3><div style="font-size: 1.5em; margin-top: 10px;">$$ ${latexEkspresi} = ${hasil} $$</div>`;
+                } catch(e) {
+                    tampilkanNotif("Format hitung salah. Contoh ketik: hitung 10 ÷ 2", true);
+                    return;
+                }
+            } 
+            // ==========================================
+            // LOGIKA RUMUS MATEMATIKA
+            // ==========================================
+            else if (teks.includes('skala')) { konten = '<h3>SKALA</h3><div>$$ S = \\frac{JP}{JA} $$</div><div>$$ JA = \\frac{JP}{S} $$</div>'; } 
+            else if (teks.includes('bilangan bulat')) { konten = '<h3>BIL BULAT</h3><div>$$ (+) \\times (-) = (-) $$</div><div>$$ (-) \\times (-) = (+) $$</div>'; } 
+            else if (teks.includes('pecahan')) { konten = '<h3>PECAHAN</h3><div>$$ \\frac{a}{b} \\pm \\frac{c}{d} = \\frac{ad \\pm bc}{bd} $$</div><div>$$ \\frac{a}{b} \\div \\frac{c}{d} = \\frac{a \\cdot d}{b \\cdot c} $$</div>'; } 
+            else if (teks.includes('perbandingan')) { konten = '<h3>PERBANDINGAN</h3><div>$$ \\frac{a}{b} = \\frac{c}{d} \\quad (Senilai)$$</div><div>$$ a \\cdot b = c \\cdot d \\quad (Berbalik)$$</div>'; } 
+            else if (teks.includes('eksponen') || teks.includes('pangkat')) { konten = '<h3>EKSPONEN</h3><div>$$ a^m \\cdot a^n = a^{m+n} $$</div><div>$$ \\left(a^m\\right)^n = a^{m \\cdot n} $$</div>'; } 
+            else if (teks.includes('kuadrat') || teks.includes('rumus abc')) { konten = '<h3>PERS KUADRAT</h3><div>$$ x_{1,2} = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a} $$</div>'; } 
+            else if (teks.includes('logaritma')) { konten = '<h3>LOGARITMA</h3><div>$$ ^a\\log b = c \\iff a^c = b $$</div><div>$$ \\log(a \\cdot b) = \\log a + \\log b $$</div>'; } 
+            else if (teks.includes('hapus') || teks.includes('hilang') || teks.includes('clear')) { konten = 'clear'; }
+            else { tampilkanNotif(`Perintah tidak dikenali. Coba ketik rumus lain.`, true); return; }
+
+            // Tampilkan ke layar dengan LaTeX
+            if (konten) {
+                hudL.classList.remove('active'); hudR.classList.remove('active');
+                if (konten !== 'clear') {
+                    hudL.innerHTML = konten; hudR.innerHTML = konten;
+                    if (window.MathJax) {
+                        try {
+                            MathJax.typesetPromise([hudL, hudR]).then(() => {
+                                if (navigator.vibrate) navigator.vibrate(80); 
+                                hudL.classList.add('active'); hudR.classList.add('active');
+                            });
+                        } catch (err) {
+                            tampilkanNotif("Sistem LaTeX error.", true);
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
